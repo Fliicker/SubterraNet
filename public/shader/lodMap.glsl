@@ -6,8 +6,8 @@ precision highp usampler2D;
 out float vLevel;
 
 uniform vec4 tileBox;
-uniform vec2 sectorRange;
-uniform vec2 dimensions;
+uniform vec2 sectorRange;       // 扇区范围, 表示最小细分单元尺寸 - ...
+uniform vec2 dimensions;        // 512
 
 uniform sampler2D boxTexture;
 uniform usampler2D levelTexture;
@@ -23,7 +23,7 @@ void main() {
 
     ivec2 instanceCoords = ivec2(gl_InstanceID, 0);
     vec4 nodeData = texelFetch(boxTexture, instanceCoords, 0);
-    float nodeStartX = floor((nodeData.r - tileBox[0]) / sectorRange.x);
+    float nodeStartX = floor((nodeData.r - tileBox[0]) / sectorRange.x);        // 得到扇区索引(位于第几个扇区)
     float nodeStartY = floor((nodeData.g - tileBox[1]) / sectorRange.y);
     float nodeEndX = ceil((nodeData.b - tileBox[0]) / sectorRange.x);
     float nodeEndY = ceil((nodeData.a - tileBox[1]) / sectorRange.y);
@@ -35,7 +35,7 @@ void main() {
         vec2(nodeEndX, nodeEndY)
     );
 
-    vec2 vertex = vertices[gl_VertexID] / dimensions;
+    vec2 vertex = vertices[gl_VertexID] / dimensions;       // 归一化到[0,1]空间 (可视区域只会占据512 * 512像素空间的一小部分)
     // vec2 vertex = vertices[gl_VertexID].xy;
 
     gl_Position = vec4(vertex * 2.0 - 1.0, 0.0, 1.0);

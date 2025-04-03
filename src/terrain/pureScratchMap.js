@@ -31,35 +31,46 @@ class PureScratchMap extends mapboxgl.Map {
     }
 
     update() {
-
+        // 1. 更新世界相机和视图投影矩阵
         this.worldCamera = updateWorldCamera(this.transform, this.WORLD_SIZE, -80.06899999999999)
         const viewMatrix = this.worldCamera.view
         const projectionMatrix = makePerspectiveMatrix(this.worldCamera.fov, this.worldCamera.aspect, this.worldCamera.nearZ, this.worldCamera.farZ)
         this.vpMatrix = projectionMatrix.multiply(viewMatrix)
 
-        this.mercatorCenter = new mapboxgl.MercatorCoordinate(...this.transform._computeCameraPosition().slice(0, 3))
+        // 2. 更新墨卡托中心坐标和缩放级别
+        this.mercatorCenter = new mapboxgl.MercatorCoordinate(
+            ...this.transform._computeCameraPosition().slice(0, 3)
+        )
         this.zoom = this.getZoom()
 
+        // 3. 高精度坐标编码
         const mercatorCenterX = encodeFloatToDouble(this.mercatorCenter.x)
         const mercatorCenterY = encodeFloatToDouble(this.mercatorCenter.y)
-
+        
+        // 存储高低精度部分
         this.centerLow[0] = mercatorCenterX[1]
         this.centerLow[1] = mercatorCenterY[1]
         this.centerHigh[0] = mercatorCenterX[0]
         this.centerHigh[1] = mercatorCenterY[0]
 
+        // 4. 更新边界框
         const { _sw, _ne } = this.getBounds()
-        // const m_sw = scr.MercatorCoordinate.fromLonLat(_sw.toArray())
-        // const m_ne = scr.MercatorCoordinate.fromLonLat(_ne.toArray())
         const m_sw = mapboxgl.MercatorCoordinate.fromLngLat(_sw.toArray())
         const m_ne = mapboxgl.MercatorCoordinate.fromLngLat(_ne.toArray())
-
-        // this.mercatorBounds.reset(...m_sw, ...m_ne)
+        
+        // 更新墨卡托边界和相机边界
         this.mercatorBounds.reset(m_sw.x, m_sw.y, m_ne.x, m_ne.y)
         this.cameraBounds.reset(...this.getBounds().toArray().flat())
 
+        // 5. 更新墨卡托矩阵和相对视角矩阵
         this.mercatorMatrix = getMercatorMatrix(this.transform.clone())
-        this.relativeEyeMatrix = new THREE.Matrix4().fromArray(this.mercatorMatrix).multiply(new THREE.Matrix4().makeTranslation(this.centerHigh[0], this.centerHigh[1], 0.0)).elements
+        this.relativeEyeMatrix = new THREE.Matrix4()
+            .fromArray(this.mercatorMatrix)
+            .multiply(new THREE.Matrix4().makeTranslation(
+                this.centerHigh[0],
+                this.centerHigh[1],
+                0.0
+            )).elements
     }
 }
 

@@ -20,12 +20,12 @@ export default class TerrainLayer {
         this.maxNodeCount = 1000
 
         this.sectorSize = 32
-        this.sectorRange = [ 0.0, 0.0 ]
+        this.sectorRange = [0.0, 0.0]
         this.exaggeration = 50.0
         this.tileBox = boundingBox2D()
-        this.lodMapSize = [ 512, 512 ]
-        this.visibleNodeLevel = [ 0, this.maxLevel ]
-        this.elevationRange = [ -80.06899999999999, 4.3745 ]
+        this.lodMapSize = [512, 512]
+        this.visibleNodeLevel = [0, this.maxLevel]
+        this.elevationRange = [-80.06899999999999, 4.3745]
         this.boundaryCondition = boundingBox2D(
             120.0437360613468201,
             31.17390195220948710,
@@ -47,21 +47,22 @@ export default class TerrainLayer {
         this.map = map
 
         const { positions, indices } = plane(Math.log2(this.sectorSize))
+
         this.positionArray = new Float32Array(positions)
         this.indexNum = indices.length
 
         this.indexTextureSize = Math.ceil(Math.sqrt(indices.length))
         this.positionTextureSize = Math.ceil(Math.sqrt(positions.length / 2))
 
-        this.indexTextureArray = new Uint32Array(this.indexTextureSize * this.indexTextureSize)
+        this.indexTextureArray = new Uint32Array(this.indexTextureSize * this.indexTextureSize)     // 网格顶点索引数组
         indices.forEach((value, index) => {
             this.indexTextureArray[index] = value
         })
-
-        this.positionTextureArray = new Float32Array(this.positionTextureSize * this.positionTextureSize * 2)
+        this.positionTextureArray = new Float32Array(this.positionTextureSize * this.positionTextureSize * 2)   // 网格坐标数组
         positions.forEach((value, index) => {
             this.positionTextureArray[index] = value
         })
+
 
         // dat.GUI
         const gui = new GUI()
@@ -107,10 +108,11 @@ export default class TerrainLayer {
         this.levelTexture = createTexture2D(gl, this.nodeLevelArray.length, 1, gl.R32UI, gl.RED_INTEGER, gl.UNSIGNED_INT, this.nodeLevelArray)
         this.indexTexture = createTexture2D(gl, this.indexTextureSize, this.indexTextureSize, gl.R32UI, gl.RED_INTEGER, gl.UNSIGNED_INT, this.indexTextureArray)
         this.positionTexture = createTexture2D(gl, this.positionTextureSize, this.positionTextureSize, gl.RG32F, gl.RG, gl.FLOAT, this.positionTextureArray)
-
+        
         //////////////////////////////
+        // dem渲染到法线纹理, 形成dem法线图, 作为fb
         this.normalTexture = createTexture2D(gl, demImageBitmap.width, demImageBitmap.height, gl.RGB8, gl.RGB, gl.UNSIGNED_BYTE)
-        const normalPass = createFrameBuffer(gl, [ this.normalTexture ])
+        const normalPass = createFrameBuffer(gl, [this.normalTexture])
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, normalPass)
         gl.viewport(0.0, 0.0, demImageBitmap.width, demImageBitmap.height)
@@ -138,9 +140,9 @@ export default class TerrainLayer {
 
         this.layerRenderBuffer = createRenderBuffer(gl, this.canvasWidth, this.canvasHeight)
 
-        this.lodMapPass = createFrameBuffer(gl, [ this.lodMapTexture ])
-        this.dLodMapPass = createFrameBuffer(gl, [ this.dLodMapTexture ])
-        this.layerPass = createFrameBuffer(gl, [ this.layerTexture ], this.layerDepthTexture)
+        this.lodMapPass = createFrameBuffer(gl, [this.lodMapTexture])
+        this.dLodMapPass = createFrameBuffer(gl, [this.dLodMapTexture])
+        this.layerPass = createFrameBuffer(gl, [this.layerTexture], this.layerDepthTexture)
 
         this.isInitialized = true
     }
@@ -155,6 +157,7 @@ export default class TerrainLayer {
         if (!this.isInitialized) return
         this.map.update()
 
+        // 生成LOD参数: nodeBoxArray(可见节点box), nodeLevelArray(可见节点level), nodeCount, sectorRange(渲染扇区大小,随地图放大而减小)
         this.registerRenderableNode({
             cameraPos: this.map.mercatorCenter.toLngLat().toArray(),
             cameraBounds: this.map.cameraBounds,
@@ -163,13 +166,13 @@ export default class TerrainLayer {
 
         fillTexture2DByArray(gl, this.boxTexture, this.nodeBoxArray.length / 4, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, this.nodeBoxArray)
         fillTexture2DByArray(gl, this.levelTexture, this.nodeLevelArray.length, 1, gl.R32UI, gl.RED_INTEGER, gl.UNSIGNED_INT, this.nodeLevelArray)
-
         // const wmcMatrix = getMercatorMatrix(this.map.transform.clone())
         // const relativeMatrix = new THREE.Matrix4().fromArray(wmcMatrix).multiply(new THREE.Matrix4().makeTranslation(this.map.centerHigh[0], this.map.centerHigh[1], 0.0))
         // console.log(this.nodeBoxArray)
 
         /////////////////////////////////////////////////////
 
+        // 将可见结点渲染到纹理lodMapTexture
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.lodMapPass)
         gl.viewport(0.0, 0.0, this.lodMapSize[0], this.lodMapSize[1])
         const clearValue = new Uint32Array([0, 0, 0, 0])
@@ -187,11 +190,10 @@ export default class TerrainLayer {
         gl.uniform2fv(gl.getUniformLocation(this.lodMapShader, 'dimensions'), new Float32Array(this.lodMapSize))
         gl.uniform2fv(gl.getUniformLocation(this.lodMapShader, 'sectorRange'), new Float32Array(this.sectorRange))
         gl.uniform4fv(gl.getUniformLocation(this.lodMapShader, 'tileBox'), new Float32Array(this.tileBox.boundary.xyzw))
-
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.nodeCount)
-
         /////////////////////////////////////////////////////
 
+        // 由lodMapTexture渲染到LOD层级差值纹理dLodMapTexture
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.dLodMapPass)
         gl.viewport(0.0, 0.0, this.lodMapSize[0], this.lodMapSize[1])
         gl.clearBufferuiv(gl.COLOR, 0, new Uint32Array([0, 0, 0, 0]))
@@ -201,7 +203,7 @@ export default class TerrainLayer {
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, this.lodMapTexture)
 
-        gl.uniform1i(gl.getUniformLocation(this.lodMapShader, 'lodMap'), 0)
+        gl.uniform1i(gl.getUniformLocation(this.dLodMapShader, 'lodMap'), 0)
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
@@ -225,19 +227,19 @@ export default class TerrainLayer {
         gl.useProgram(this.terrainShader)
 
         gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, this.indexTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.indexTexture)    // 网格顶点索引纹理(正方形,像素数=数组长度)
         gl.activeTexture(gl.TEXTURE1)
-        gl.bindTexture(gl.TEXTURE_2D, this.positionTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.positionTexture) // 网格顶点坐标纹理(正方形,像素数=数组长度))([0,1]空间)
         gl.activeTexture(gl.TEXTURE2)
-        gl.bindTexture(gl.TEXTURE_2D, this.levelTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.levelTexture)    // 结点层级纹理(单行)
         gl.activeTexture(gl.TEXTURE3)
-        gl.bindTexture(gl.TEXTURE_2D, this.boxTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.boxTexture)      // 结点坐标纹理(单行)
         gl.activeTexture(gl.TEXTURE4)
-        gl.bindTexture(gl.TEXTURE_2D, this.dLodMapTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.dLodMapTexture)  // LOD差值纹理
         gl.activeTexture(gl.TEXTURE5)
-        gl.bindTexture(gl.TEXTURE_2D, this.demTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.demTexture)      // DEM纹理
         gl.activeTexture(gl.TEXTURE6)
-        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture)   // DEM法线纹理
 
         gl.uniform1i(gl.getUniformLocation(this.terrainShader, 'indicesTexture'), 0)
         gl.uniform1i(gl.getUniformLocation(this.terrainShader, 'positionsTexture'), 1)
@@ -246,7 +248,7 @@ export default class TerrainLayer {
         gl.uniform1i(gl.getUniformLocation(this.terrainShader, 'dLodMap'), 4)
         gl.uniform1i(gl.getUniformLocation(this.terrainShader, 'demTexture'), 5)
         gl.uniform1i(gl.getUniformLocation(this.terrainShader, 'normalTexture'), 6)
-        gl.uniform1f(gl.getUniformLocation(this.terrainShader, 'sectorSize'), this.sectorSize)
+        gl.uniform1f(gl.getUniformLocation(this.terrainShader, 'sectorSize'), this.sectorSize)  // 32
         gl.uniform1f(gl.getUniformLocation(this.terrainShader, 'worldSize'), this.map.WORLD_SIZE)
         gl.uniform1f(gl.getUniformLocation(this.terrainShader, 'exaggeration'), this.exaggeration)
         gl.uniform2fv(gl.getUniformLocation(this.terrainShader, 'centerHigh'), this.map.centerHigh)
@@ -261,8 +263,8 @@ export default class TerrainLayer {
         gl.uniformMatrix4fv(gl.getUniformLocation(this.terrainShader, 'uMatrix'), false, this.map.relativeEyeMatrix)
         // gl.uniformMatrix4fv(gl.getUniformLocation(this.terrainShader, 'vpMatrix'), false, this.map.vpMatrix.elements)
 
-        this.asLine ? gl.drawArraysInstanced(gl.LINES, 0, this.indexNum / 3 * 6, this.nodeCount)
-        : gl.drawArraysInstanced(gl.TRIANGLES, 0, this.indexNum, this.nodeCount)
+        this.asLine ? gl.drawArraysInstanced(gl.LINES, 0, this.indexNum / 3 * 6, this.nodeCount)    // 每一实例代表一LOD结点
+            : gl.drawArraysInstanced(gl.TRIANGLES, 0, this.indexNum, this.nodeCount)
 
         /////////////////////////////////////////////////////
 
@@ -299,7 +301,7 @@ export default class TerrainLayer {
         gl.uniform3fv(gl.getUniformLocation(this.showShader, 'contourColor'), new Float32Array(this.color))
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-
+        
         /////////////////////////////////////////////////////
         // Check for errors
         const error = gl.getError()
@@ -312,7 +314,7 @@ export default class TerrainLayer {
      * @param { { cameraPos: { x: number, y: number, z: number }, cameraBounds: BoundingBox2D, zoomLevel: number } } options 
      */
     registerRenderableNode(options) {
-        
+
         // Reset uiform-related member per frame
         this.tileBox.reset()
         this.sectorRange.fill(0)
@@ -321,19 +323,19 @@ export default class TerrainLayer {
         this.minVisibleNodeLevel = this.maxLevel
 
         // Find visible terrain nodes
-        /** @type { Node2D[] } */ const stack = [] 
+        /** @type { Node2D[] } */ const stack = []
         /** @type { Node2D[] } */ const visibleNode = []
         stack.push(new Node2D(0, 0))
         stack.push(new Node2D(0, 1))
-        while(stack.length > 0) {
-            
+        while (stack.length > 0) {
+
             let node = stack.pop()
 
             // Termination condition #1
             if (!node.bBox.overlap(this.boundaryCondition)) continue
             // Termination condition #2
             if (!node.isSubdividable(options) || node.level >= Math.min(this.maxLevel, options.zoomLevel)) {
-                
+
                 visibleNode.push(node)
                 // Update the sector size used for rendering
                 if (node.level > this.maxVisibleNodeLevel) {
@@ -362,23 +364,25 @@ export default class TerrainLayer {
 
                 this.minVisibleNodeLevel = node.level < this.minVisibleNodeLevel ? node.level : this.minVisibleNodeLevel
                 this.tileBox.updateByBox(node.bBox)
-    
-                this.nodeLevelArray[ this.nodeCount ] = node.level
+
+                this.nodeLevelArray[this.nodeCount] = node.level
                 this.nodeBoxArray[this.nodeCount * 4 + 0] = node.bBox.boundary.x
                 this.nodeBoxArray[this.nodeCount * 4 + 1] = node.bBox.boundary.y
                 this.nodeBoxArray[this.nodeCount * 4 + 2] = node.bBox.boundary.z
                 this.nodeBoxArray[this.nodeCount * 4 + 3] = node.bBox.boundary.w
-    
+
                 this.nodeCount++
             }
 
             node.release()
         })
 
+
+
         // console.log(this.nodeCount)
         // console.log(this.map.getZoom(), Math.ceil((this.tileBox.xMax - this.tileBox.xMin) / this.sectorRange[0]))
     }
-    
+
 }
 
 // Helpers //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -403,7 +407,7 @@ async function createShader(gl, url) {
 
     let shaderCode = ''
     await axios.get(url)
-    .then(response => shaderCode += response.data)
+        .then(response => shaderCode += response.data)
     const vertexShaderStage = compileShader(gl, shaderCode, gl.VERTEX_SHADER)
     const fragmentShaderStage = compileShader(gl, shaderCode, gl.FRAGMENT_SHADER)
 
@@ -419,12 +423,12 @@ async function createShader(gl, url) {
     return shader
 
     function compileShader(gl, source, type) {
-    
+
         const versionDefinition = '#version 300 es\n'
         const module = gl.createShader(type)
         if (type === gl.VERTEX_SHADER) source = versionDefinition + '#define VERTEX_SHADER\n' + source
         else if (type === gl.FRAGMENT_SHADER) source = versionDefinition + '#define FRAGMENT_SHADER\n' + source
-    
+
         gl.shaderSource(module, source)
         gl.compileShader(module)
         if (!gl.getShaderParameter(module, gl.COMPILE_STATUS)) {
@@ -432,7 +436,7 @@ async function createShader(gl, url) {
             gl.deleteShader(module)
             return null
         }
-    
+
         return module
     }
 }
@@ -482,7 +486,7 @@ function createFrameBuffer(gl, textures, depthTexture, renderBuffer) {
  * @param { ArrayBufferTypes | ImageBitmap } [ resource ]
  */
 function createTexture2D(gl, width, height, internalFormat, format, type, resource, generateMips = false) {
-    
+
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
 
@@ -510,7 +514,7 @@ function createTexture2D(gl, width, height, internalFormat, format, type, resour
  * @param { ArrayBufferTypes } array
  */
 function fillTexture2DByArray(gl, texture, width, height, internalFormat, format, type, array) {
-    
+
     // Bind the texture
     gl.bindTexture(gl.TEXTURE_2D, texture)
 

@@ -169,9 +169,9 @@ void main() {
 
     int triangleID = int(gl_VertexID) / 3;
     float level = float(texelFetch(levelTexture, ivec2(gl_InstanceID, 0), 0).r);
-    int index = int(texelFetch(indicesTexture, indexToUV_U(indicesTexture, int(gl_VertexID)), 0).r);
+    int index = int(texelFetch(indicesTexture, indexToUV_U(indicesTexture, int(gl_VertexID)), 0).r);    // VertexID ==> indice索引
 
-    float x = texelFetch(positionsTexture, indexToUV(positionsTexture, index), 0).r;
+    float x = texelFetch(positionsTexture, indexToUV(positionsTexture, index), 0).r;    // indice索引 ==> 顶点坐标
     float y = texelFetch(positionsTexture, indexToUV(positionsTexture, index), 0).g;
 
     vec2 center = centering(triangleID, level);

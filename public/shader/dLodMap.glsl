@@ -43,9 +43,10 @@ int uSampling(usampler2D texture, vec2 uv, vec2 dim) {
 
 void main() {
 
-    vec2 uv = texcoords * vec2(textureSize(lodMap, 0));
-    vec2 lodDim = vec2(textureSize(lodMap, 0));
+    vec2 lodDim = vec2(textureSize(lodMap, 0)); // 512
+    vec2 uv = texcoords * lodDim;     // 恢复到纹理尺度
 
+    // 求出当前及四个相邻像素层级
     int levelM = uSampling(lodMap, uv, lodDim);
     int levelN = uSampling(lodMap, uv + vec2(0.0, -1.0), lodDim);
     int levelE = uSampling(lodMap, uv + vec2(1.0, 0.0), lodDim);
@@ -62,7 +63,7 @@ void main() {
     // uint dSM = uint(max(levelM - levelS, 0));
     // uint dWM = uint(max(levelM - levelW, 0));
 
-    uint color = (dNM << 24) + (dEM << 16) + (dSM << 8) + dWM;
+    uint color = (dNM << 24) + (dEM << 16) + (dSM << 8) + dWM;      // 四邻层级差异信息编码(限制在[0,2])
 
     fragColor = uvec4(color, 0, 0, 0);
 }
